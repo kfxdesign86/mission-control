@@ -1,0 +1,6 @@
+node_modules/
+.next/
+.env.local
+*.log
+client/node_modules/
+client/dist/

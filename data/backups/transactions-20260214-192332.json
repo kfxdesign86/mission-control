@@ -1,0 +1,12 @@
+[
+  {
+    "id": "transfer-1771082381493",
+    "type": "Transfer",
+    "category": "cash",
+    "sourceBank": "Standard Charter",
+    "recipientBank": "Stables",
+    "value": 10000,
+    "notes": "",
+    "createdAt": "2026-02-14T15:19:41.493Z"
+  }
+]
