@@ -101,20 +101,29 @@ export function AssetProvider({ children }: { children: ReactNode }) {
   const addAsset = (asset: Omit<Asset, 'allocation'>) => {
     userHasModified.current = true;
     
-    // Check if an asset with the same ID already exists
-    const existingAssetIndex = assets.findIndex(a => a.id === asset.id);
+    // Check if an asset with the same ID already exists, OR by name+category for non-crypto/non-stock assets
+    let existingAssetIndex = assets.findIndex(a => a.id === asset.id);
+    
+    // If not found by ID, try matching by name + category (but NOT for crypto/stocks which have stable IDs)
+    if (existingAssetIndex === -1 && !asset.id.startsWith('crypto-') && !asset.id.startsWith('stock-')) {
+      existingAssetIndex = assets.findIndex(a => 
+        a.name === asset.name && a.category === asset.category
+      );
+    }
     
     if (existingAssetIndex !== -1) {
       // Asset exists - update it instead of creating a new one
       const existingAsset = assets[existingAssetIndex];
       
       // For assets with quantity (crypto, stocks), add quantities and recalculate value
-      if (asset.qty && existingAsset.qty && asset.price) {
-        const newQty = existingAsset.qty + asset.qty;
+      if (asset.qty && asset.price) {
+        // Handle case where existing asset might not have qty field yet
+        const existingQty = existingAsset.qty || 0;
+        const newQty = existingQty + asset.qty;
         const newValue = newQty * asset.price;
         const newChange24h = asset.changePercent ? (asset.changePercent / 100) * newValue : 0;
         
-        updateAsset(asset.id, {
+        updateAsset(existingAsset.id, {
           qty: newQty,
           value: newValue,
           change24h: newChange24h,
@@ -123,7 +132,7 @@ export function AssetProvider({ children }: { children: ReactNode }) {
         });
       } else {
         // For assets without quantity, just update the value
-        updateAsset(asset.id, {
+        updateAsset(existingAsset.id, {
           value: existingAsset.value + asset.value,
         });
       }

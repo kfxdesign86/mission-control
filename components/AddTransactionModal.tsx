@@ -256,17 +256,27 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
 
   // Calculate total value when quantity or price changes
   useEffect(() => {
-    if (selectedCoin?.price && quantity) {
-      const total = parseFloat(quantity) * selectedCoin.price;
-      setValue(total.toString());
+    if (selectedCoin?.price) {
+      if (quantity) {
+        const total = parseFloat(quantity) * selectedCoin.price;
+        setValue(total.toString());
+      } else {
+        // Show unit price even when quantity is not entered
+        setValue(selectedCoin.price.toString());
+      }
     }
   }, [quantity, selectedCoin?.price]);
 
   // Calculate total value when stock quantity or price changes
   useEffect(() => {
-    if (selectedStock?.price && stockQuantity) {
-      const total = parseFloat(stockQuantity) * selectedStock.price;
-      setValue(total.toString());
+    if (selectedStock?.price) {
+      if (stockQuantity) {
+        const total = parseFloat(stockQuantity) * selectedStock.price;
+        setValue(total.toString());
+      } else {
+        // Show unit price even when quantity is not entered
+        setValue(selectedStock.price.toString());
+      }
     }
   }, [stockQuantity, selectedStock?.price]);
 
@@ -1763,7 +1773,10 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
                       onChange={(e) => setValue(e.target.value)}
                       placeholder="0.00"
                       className={inputClass}
-                      required
+                      required={
+                        !(category === 'crypto' && !!selectedCoin) &&
+                        !(category === 'stocks' && !!selectedStock)
+                      }
                       min="0"
                       step="0.01"
                       readOnly={
