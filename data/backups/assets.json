@@ -1,0 +1,110 @@
+[
+  {
+    "id": "crypto-bitcoin",
+    "name": "Bitcoin",
+    "symbol": "BTC",
+    "value": 1698240,
+    "price": 70760,
+    "qty": 24,
+    "change24h": 30673,
+    "changePercent": 1.8061389929631775,
+    "category": "crypto",
+    "history": [
+      {
+        "timestamp": 1770975023118,
+        "value": 1601767
+      },
+      {
+        "timestamp": 1770985832201,
+        "value": 1608997
+      },
+      {
+        "timestamp": 1770996699782,
+        "value": 1654063
+      },
+      {
+        "timestamp": 1771007453294,
+        "value": 1656495
+      },
+      {
+        "timestamp": 1771018244477,
+        "value": 1653532
+      },
+      {
+        "timestamp": 1771029033351,
+        "value": 1651413
+      },
+      {
+        "timestamp": 1771039855348,
+        "value": 1653598
+      },
+      {
+        "timestamp": 1771050611346,
+        "value": 1652349
+      }
+    ],
+    "createdAt": "2026-02-14T08:00:00Z"
+  },
+  {
+    "id": "cash-standard-charter-1771078970541",
+    "name": "Standard Charter",
+    "symbol": "USD",
+    "value": 109000,
+    "category": "cash",
+    "bankName": "Standard Charter",
+    "accountType": "Credit",
+    "notes": "",
+    "change24h": 0,
+    "changePercent": 0,
+    "history": [],
+    "createdAt": "2026-02-14T09:00:00Z"
+  },
+  {
+    "id": "cash-stables-1771080598755",
+    "name": "Stables",
+    "symbol": "USD",
+    "value": 161000,
+    "category": "cash",
+    "bankName": "Stables",
+    "accountType": "Credit",
+    "notes": "",
+    "change24h": 0,
+    "changePercent": 0,
+    "history": [],
+    "createdAt": "2026-02-14T10:00:00Z"
+  },
+  {
+    "id": "stock-TSLA",
+    "name": "Tesla, Inc.",
+    "symbol": "TSLA",
+    "value": 41744,
+    "price": 417.44,
+    "qty": 100,
+    "change24h": 37,
+    "changePercent": 0.088712952,
+    "category": "stocks",
+    "history": [],
+    "createdAt": "2026-02-15T07:34:47.832Z"
+  },
+  {
+    "id": "real-estate-1771142064857",
+    "name": "test",
+    "symbol": "",
+    "value": 5555600,
+    "change24h": 0,
+    "changePercent": 0,
+    "category": "real-estate",
+    "history": [],
+    "createdAt": "2026-02-15T07:54:24.857Z",
+    "propertyType": "off-plan",
+    "purchasePrice": 5555555,
+    "admTaxFee": 45,
+    "payments": [
+      {
+        "percentage": 100,
+        "dueDate": "2026-02-20"
+      }
+    ],
+    "notes": ""
+  }
+]

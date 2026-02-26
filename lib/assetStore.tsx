@@ -100,11 +100,41 @@ export function AssetProvider({ children }: { children: ReactNode }) {
 
   const addAsset = (asset: Omit<Asset, 'allocation'>) => {
     userHasModified.current = true;
-    const newAsset: Asset = {
-      ...asset,
-      allocation: 0,
-    };
-    setAssets(prev => [...prev, newAsset]);
+    
+    // Check if an asset with the same ID already exists
+    const existingAssetIndex = assets.findIndex(a => a.id === asset.id);
+    
+    if (existingAssetIndex !== -1) {
+      // Asset exists - update it instead of creating a new one
+      const existingAsset = assets[existingAssetIndex];
+      
+      // For assets with quantity (crypto, stocks), add quantities and recalculate value
+      if (asset.qty && existingAsset.qty && asset.price) {
+        const newQty = existingAsset.qty + asset.qty;
+        const newValue = newQty * asset.price;
+        const newChange24h = asset.changePercent ? (asset.changePercent / 100) * newValue : 0;
+        
+        updateAsset(asset.id, {
+          qty: newQty,
+          value: newValue,
+          change24h: newChange24h,
+          price: asset.price, // Update to latest price
+          changePercent: asset.changePercent, // Update to latest price change
+        });
+      } else {
+        // For assets without quantity, just update the value
+        updateAsset(asset.id, {
+          value: existingAsset.value + asset.value,
+        });
+      }
+    } else {
+      // Asset doesn't exist - create new one
+      const newAsset: Asset = {
+        ...asset,
+        allocation: 0,
+      };
+      setAssets(prev => [...prev, newAsset]);
+    }
   };
 
   const removeAsset = (id: string) => {
