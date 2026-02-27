@@ -6,7 +6,6 @@ import { X, Banknote, Coins, TrendingUp, Building2, Car, Gem, Loader2, Plus } fr
 import { cn } from '@/lib/utils';
 import { useAssets } from '@/lib/assetStore';
 import { useStockPrices } from '@/lib/stockPriceService';
-import { banksStorage, transactionsStorage } from '@/lib/localStorage';
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -351,25 +350,13 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
     }
   }, [isOpen]);
 
-  // Load banks from localStorage or seed data
+  // Load banks from API
   const loadBanks = async () => {
     try {
-      // Try localStorage first
-      const storedBanks = banksStorage.get();
-      
-      if (storedBanks && Array.isArray(storedBanks)) {
-        setBanks(storedBanks);
-      } else {
-        // Load seed data if localStorage is empty
-        const response = await fetch('/api/seed-data');
-        if (response.ok) {
-          const data = await response.json();
-          const seedBanks = data.banks;
-          if (Array.isArray(seedBanks)) {
-            setBanks(seedBanks);
-            banksStorage.save(seedBanks);
-          }
-        }
+      const response = await fetch('/api/banks');
+      if (response.ok) {
+        const banksData = await response.json();
+        setBanks(banksData);
       }
     } catch (error) {
       console.error('Error loading banks:', error);
@@ -382,15 +369,19 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
     if (!bankName) return;
 
     try {
-      const updatedBanks = [...banks];
-      if (!updatedBanks.includes(bankName)) {
-        updatedBanks.push(bankName);
-        setBanks(updatedBanks);
-        banksStorage.save(updatedBanks);
+      const response = await fetch('/api/banks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bankName),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBanks(data.banks);
+        setSelectedBank(bankName);
+        setNewBankName('');
+        setShowBankInput(false);
       }
-      setSelectedBank(bankName);
-      setNewBankName('');
-      setShowBankInput(false);
     } catch (error) {
       console.error('Error adding bank:', error);
       alert('Failed to add bank. Please try again.');
@@ -400,21 +391,49 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
   // Delete bank and all associated assets
   const handleDeleteBank = async (bankName: string) => {
     try {
-      // Delete the bank from the banks list
-      const updatedBanks = banks.filter(bank => bank !== bankName);
-      setBanks(updatedBanks);
-      banksStorage.save(updatedBanks);
+      // First, delete the bank from the banks list
+      const bankResponse = await fetch(`/api/banks?name=${encodeURIComponent(bankName)}`, {
+        method: 'DELETE',
+      });
+
+      if (!bankResponse.ok) {
+        throw new Error('Failed to delete bank');
+      }
+
+      const bankData = await bankResponse.json();
+      setBanks(bankData.banks);
 
       // If this was the selected bank, clear selection
       if (selectedBank === bankName) {
         setSelectedBank('');
       }
 
-      // Remove all assets associated with this bank from the asset store
-      const assetsToRemove = assets.filter(asset => 
-        asset.category === 'cash' && (asset as any).bankName === bankName
-      );
-      assetsToRemove.forEach(asset => removeAsset(asset.id));
+      // Next, get current assets and filter out all assets associated with this bank
+      const assetsResponse = await fetch('/api/assets');
+      if (assetsResponse.ok) {
+        const currentAssets = await assetsResponse.json();
+        const filteredAssets = currentAssets.filter((asset: any) => 
+          !(asset.category === 'cash' && asset.bankName === bankName)
+        );
+
+        // Save the filtered assets back
+        const saveResponse = await fetch('/api/assets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(filteredAssets),
+        });
+
+        if (!saveResponse.ok) {
+          throw new Error('Failed to delete associated assets');
+        }
+
+        // Update the local asset store to reflect the changes
+        // Find all assets with this bank and remove them from the store
+        const assetsToRemove = assets.filter(asset => 
+          asset.category === 'cash' && (asset as any).bankName === bankName
+        );
+        assetsToRemove.forEach(asset => removeAsset(asset.id));
+      }
 
       setDeleteConfirmation({show: false, bankName: ''});
     } catch (error) {
@@ -430,15 +449,19 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
     if (!bankName) return;
 
     try {
-      const updatedBanks = [...banks];
-      if (!updatedBanks.includes(bankName)) {
-        updatedBanks.push(bankName);
-        setBanks(updatedBanks);
-        banksStorage.save(updatedBanks);
+      const response = await fetch('/api/banks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bankName),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBanks(data.banks);
+        setRecipientBank(bankName);
+        setNewRecipientBankName('');
+        setShowRecipientBankInput(false);
       }
-      setRecipientBank(bankName);
-      setNewRecipientBankName('');
-      setShowRecipientBankInput(false);
     } catch (error) {
       console.error('Error adding recipient bank:', error);
       alert('Failed to add recipient bank. Please try again.');
@@ -811,19 +834,20 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
         }
         
         // Log the transfer as a transaction record
-        const currentTransactions = transactionsStorage.get() || [];
-        const newTransaction = {
-          id: `transfer-${Date.now()}`,
-          type: 'Transfer',
-          category: 'cash',
-          sourceBank: selectedBank,
-          recipientBank: recipientBank,
-          value: transferAmount,
-          notes: cashNotes,
-          createdAt: new Date().toISOString(),
-        };
-        currentTransactions.push(newTransaction);
-        transactionsStorage.save(currentTransactions);
+        await fetch('/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: `transfer-${Date.now()}`,
+            type: 'Transfer',
+            category: 'cash',
+            sourceBank: selectedBank,
+            recipientBank: recipientBank,
+            value: transferAmount,
+            notes: cashNotes,
+            createdAt: new Date().toISOString(),
+          }),
+        });
         
         resetForm();
         onClose();

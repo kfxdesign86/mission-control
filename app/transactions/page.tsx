@@ -7,7 +7,6 @@ import { useAssets } from '@/lib/assetStore';
 import { Calendar, Filter, Search, TrendingUp, TrendingDown, Banknote, Coins, Building2, Car, Gem, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { transactionsStorage } from '@/lib/localStorage';
 
 interface TransactionData {
   id: string;
@@ -40,26 +39,14 @@ export default function TransactionsPage() {
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [transferRecords, setTransferRecords] = useState<any[]>([]);
 
-  // Load transfer records from localStorage
+  // Load transfer records from API
   useEffect(() => {
     async function loadTransfers() {
       try {
-        // Try localStorage first
-        const storedTransactions = transactionsStorage.get();
-        
-        if (storedTransactions && Array.isArray(storedTransactions)) {
-          setTransferRecords(storedTransactions);
-        } else {
-          // Load seed data if localStorage is empty
-          const response = await fetch('/api/seed-data');
-          if (response.ok) {
-            const data = await response.json();
-            const seedTransactions = data.transactions;
-            if (Array.isArray(seedTransactions)) {
-              setTransferRecords(seedTransactions);
-              transactionsStorage.save(seedTransactions);
-            }
-          }
+        const response = await fetch('/api/transactions');
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) setTransferRecords(data);
         }
       } catch (e) {
         console.error('Error loading transfers:', e);
