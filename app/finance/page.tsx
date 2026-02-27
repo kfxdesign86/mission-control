@@ -40,8 +40,23 @@ export default function FinancePage() {
   const [activeCategory, setActiveCategory] = useState('crypto');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Filter assets based on active category
-  const filteredAssets = assets.filter(asset => asset.category === activeCategory);
+  // Filter assets based on active category and deduplicate by ID
+  const filteredAssets = assets
+    .filter(asset => asset.category === activeCategory)
+    .reduce((acc, asset) => {
+      const existingIndex = acc.findIndex(existing => existing.id === asset.id);
+      if (existingIndex === -1) {
+        // New unique asset
+        acc.push(asset);
+      } else {
+        // Duplicate - keep the one with higher value
+        const existing = acc[existingIndex];
+        if (asset.value > existing.value) {
+          acc[existingIndex] = asset;
+        }
+      }
+      return acc;
+    }, [] as typeof assets);
 
   // Calculate category totals and 24h changes
   const cashTotal = assets

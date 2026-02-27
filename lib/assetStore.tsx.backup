@@ -29,29 +29,12 @@ export function AssetProvider({ children }: { children: ReactNode }) {
         if (response.ok) {
           const data = await response.json();
           if (Array.isArray(data)) {
-            // Deduplicate assets by ID to prevent duplicate cards
-            const uniqueAssets = data.reduce((acc: Asset[], asset: any) => {
-              const existingIndex = acc.findIndex((existing: Asset) => existing.id === asset.id);
-              if (existingIndex === -1) {
-                // New asset - add it
-                acc.push({
-                  ...asset,
-                  allocation: asset.allocation || 0 // Temporary - will be recalculated
-                });
-              } else {
-                // Duplicate asset - keep the one with higher value
-                const existing = acc[existingIndex];
-                if (asset.value > existing.value) {
-                  acc[existingIndex] = {
-                    ...asset,
-                    allocation: asset.allocation || 0
-                  };
-                }
-              }
-              return acc;
-            }, []);
-            
-            setAssets(uniqueAssets);
+            // Ensure allocation property exists but will be recalculated dynamically
+            const assetsWithAllocation = data.map(asset => ({
+              ...asset,
+              allocation: asset.allocation || 0 // Temporary - will be recalculated
+            }));
+            setAssets(assetsWithAllocation);
           }
         } else {
           console.error('Failed to load assets:', response.statusText);

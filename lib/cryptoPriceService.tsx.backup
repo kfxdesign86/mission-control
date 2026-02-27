@@ -90,9 +90,9 @@ export function useCryptoPrices() {
         const priceData = data[coinId];
 
         if (priceData) {
-          // Use stored quantity directly instead of calculating from value/price
+          // Calculate quantity from current value and price
           const currentPrice = priceData.usd;
-          const quantity = asset.qty || 1; // Use actual quantity field
+          const quantity = asset.price ? asset.value / asset.price : 1;
           const newValue = Math.round(quantity * currentPrice);
           const change24h = Math.round((priceData.usd_24h_change / 100) * newValue);
 
@@ -162,7 +162,7 @@ export function useCryptoPrices() {
 
       for (const asset of cryptoAssets) {
         const coinId = asset.id.replace('crypto-', '');
-        const quantity = asset.qty || 1; // Use actual quantity field
+        const quantity = asset.price ? asset.value / asset.price : 1;
         const chartData = await fetchChartData(coinId, quantity);
         chartDataCache[asset.id] = {
           data: chartData,
@@ -171,15 +171,8 @@ export function useCryptoPrices() {
       }
     };
 
-    // Only run when the number of crypto assets changes, not on every asset update
-    const cryptoCount = assets.filter(asset => 
-      asset.category === 'crypto' && asset.id.startsWith('crypto-')
-    ).length;
-    
-    if (cryptoCount > 0) {
-      fetchChartDataForNewAssets();
-    }
-  }, [assets.length]); // Changed from [assets] to [assets.length] to prevent loops
+    fetchChartDataForNewAssets();
+  }, [assets]);
 
   return {
     getChartData,
