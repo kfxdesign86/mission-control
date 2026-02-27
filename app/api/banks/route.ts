@@ -1,46 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'banks.json');
-
-// Ensure data directory exists
-async function ensureDataDirectory() {
-  const dataDir = path.dirname(DATA_FILE_PATH);
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-}
-
-// Read banks from file
-async function readBanks() {
-  try {
-    await ensureDataDirectory();
-    const data = await fs.readFile(DATA_FILE_PATH, 'utf-8');
-    return JSON.parse(data);
-  } catch (error: any) {
-    // Only create file if it truly doesn't exist
-    if (error.code === 'ENOENT') {
-      await ensureDataDirectory();
-      await fs.writeFile(DATA_FILE_PATH, JSON.stringify([], null, 2));
-    }
-    return [];
-  }
-}
-
-// Write banks to file
-async function writeBanks(banks: string[]) {
-  await ensureDataDirectory();
-  await fs.writeFile(DATA_FILE_PATH, JSON.stringify(banks, null, 2));
-}
+import { supabase } from '@/lib/supabase';
 
 // GET /api/banks - Return all saved banks
 export async function GET() {
   try {
-    const banks = await readBanks();
-    return NextResponse.json(banks);
+    const { data: banks, error } = await supabase
+      .from('banks')
+      .select('name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json(
+        { error: 'Failed to read banks' },
+        { status: 500 }
+      );
+    }
+
+    // Return just the names as an array (to match existing API)
+    const bankNames = banks?.map(bank => bank.name) || [];
+    return NextResponse.json(bankNames);
   } catch (error) {
     console.error('Error reading banks:', error);
     return NextResponse.json(
@@ -58,17 +37,82 @@ export async function POST(request: NextRequest) {
     // Handle both single bank addition and full array update
     if (typeof body === 'string') {
       // Adding a single bank
-      const banks = await readBanks();
-      if (!banks.includes(body)) {
-        banks.push(body);
-        await writeBanks(banks);
+      const bankName = body.trim();
+      
+      // Check if bank already exists
+      const { data: existing, error: checkError } = await supabase
+        .from('banks')
+        .select('name')
+        .eq('name', bankName)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error checking existing bank:', checkError);
+        return NextResponse.json(
+          { error: 'Failed to check existing bank' },
+          { status: 500 }
+        );
       }
-      return NextResponse.json({ success: true, banks });
+
+      if (!existing) {
+        // Insert new bank
+        const { error: insertError } = await supabase
+          .from('banks')
+          .insert({ name: bankName });
+
+        if (insertError) {
+          console.error('Error inserting bank:', insertError);
+          return NextResponse.json(
+            { error: 'Failed to add bank' },
+            { status: 500 }
+          );
+        }
+      }
+
+      // Return updated list
+      const { data: banks } = await supabase
+        .from('banks')
+        .select('name')
+        .order('name', { ascending: true });
+      
+      const bankNames = banks?.map(bank => bank.name) || [];
+      return NextResponse.json({ success: true, banks: bankNames });
+      
     } else if (Array.isArray(body)) {
-      // Saving full array
-      const banks = body.filter(bank => typeof bank === 'string' && bank.trim().length > 0);
-      await writeBanks(banks);
-      return NextResponse.json({ success: true, count: banks.length });
+      // Saving full array - replace all banks
+      const bankNames = body.filter(bank => typeof bank === 'string' && bank.trim().length > 0);
+      
+      // Delete all existing banks
+      const { error: deleteError } = await supabase
+        .from('banks')
+        .delete()
+        .neq('id', 0); // Delete all records
+
+      if (deleteError) {
+        console.error('Error deleting banks:', deleteError);
+        return NextResponse.json(
+          { error: 'Failed to clear existing banks' },
+          { status: 500 }
+        );
+      }
+
+      // Insert new banks
+      if (bankNames.length > 0) {
+        const banksToInsert = bankNames.map(name => ({ name }));
+        const { error: insertError } = await supabase
+          .from('banks')
+          .insert(banksToInsert);
+
+        if (insertError) {
+          console.error('Error inserting banks:', insertError);
+          return NextResponse.json(
+            { error: 'Failed to save banks' },
+            { status: 500 }
+          );
+        }
+      }
+
+      return NextResponse.json({ success: true, count: bankNames.length });
     } else {
       return NextResponse.json(
         { error: 'Invalid request body' },
@@ -97,13 +141,31 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    const banks = await readBanks();
-    const updatedBanks = banks.filter((bank: string) => bank !== bankName);
-    await writeBanks(updatedBanks);
+    // Delete the bank
+    const { error } = await supabase
+      .from('banks')
+      .delete()
+      .eq('name', bankName);
+
+    if (error) {
+      console.error('Error deleting bank:', error);
+      return NextResponse.json(
+        { error: 'Failed to delete bank' },
+        { status: 500 }
+      );
+    }
+
+    // Return updated list
+    const { data: banks } = await supabase
+      .from('banks')
+      .select('name')
+      .order('name', { ascending: true });
+    
+    const bankNames = banks?.map(bank => bank.name) || [];
     
     return NextResponse.json({ 
       success: true, 
-      banks: updatedBanks,
+      banks: bankNames,
       deleted: bankName 
     });
   } catch (error) {
