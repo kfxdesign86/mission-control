@@ -1,71 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sql, initializeDatabase } from '@/lib/db';
+import { supabase, Transaction } from '@/lib/supabase';
 
-// Initialize database on first request
-let dbInitialized = false;
-
-async function ensureDbInitialized() {
-  if (!dbInitialized) {
-    await initializeDatabase();
-    dbInitialized = true;
-  }
-}
-
+// GET /api/transactions - Return all saved transactions
 export async function GET() {
   try {
-    await ensureDbInitialized();
-    
-    const transactions = await sql`
-      SELECT 
-        id, type, category, source_bank, recipient_bank, 
-        value, notes, created_at
-      FROM transactions 
-      ORDER BY created_at DESC
-    `;
-    
-    return NextResponse.json(transactions);
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch transactions' },
-      { status: 500 }
-    );
-  }
-}
+    const { data: transactions, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('createdAt', { ascending: false });
 
-export async function POST(request: NextRequest) {
-  try {
-    await ensureDbInitialized();
-    
-    const transaction = await request.json();
-    
-    if (!transaction.id || !transaction.type || !transaction.category) {
+    if (error) {
+      console.error('Supabase error:', error);
       return NextResponse.json(
-        { error: 'Missing required fields: id, type, category' },
-        { status: 400 }
+        { error: 'Failed to read transactions' },
+        { status: 500 }
       );
     }
 
-    await sql`
-      INSERT INTO transactions (
-        id, type, category, source_bank, recipient_bank, 
-        value, notes, created_at
-      ) VALUES (
-        ${transaction.id}, ${transaction.type}, ${transaction.category},
-        ${transaction.sourceBank || null}, ${transaction.recipientBank || null},
-        ${transaction.value}, ${transaction.notes || null}, 
-        ${transaction.createdAt || new Date().toISOString()}
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        type = EXCLUDED.type,
-        category = EXCLUDED.category,
-        source_bank = EXCLUDED.source_bank,
-        recipient_bank = EXCLUDED.recipient_bank,
-        value = EXCLUDED.value,
-        notes = EXCLUDED.notes
-    `;
+    return NextResponse.json(transactions || []);
+  } catch (error) {
+    console.error('Error reading transactions:', error);
+    return NextResponse.json([], { status: 500 });
+  }
+}
+
+// POST /api/transactions - Add a new transaction
+export async function POST(request: NextRequest) {
+  try {
+    const transaction: Transaction = await request.json();
     
-    return NextResponse.json({ success: true });
+    // Insert the transaction
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert(transaction)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error inserting transaction:', error);
+      return NextResponse.json(
+        { error: 'Failed to save transaction' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, transaction: data });
   } catch (error) {
     console.error('Error saving transaction:', error);
     return NextResponse.json(
