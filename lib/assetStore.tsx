@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Asset } from './mockData';
+import { assetsStorage } from './localStorage';
 
 interface AssetContextType {
   assets: Asset[];
@@ -18,76 +19,62 @@ const AssetContext = createContext<AssetContextType | undefined>(undefined);
 export function AssetProvider({ children }: { children: ReactNode }) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasLoaded, setHasLoaded] = useState(false);
 
-  // Load assets from API on mount
+  // Load assets from localStorage first, fallback to seed data
   useEffect(() => {
     async function loadAssets() {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/assets');
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data)) {
-            // Ensure allocation property exists but will be recalculated dynamically
-            const assetsWithAllocation = data.map(asset => ({
-              ...asset,
-              allocation: asset.allocation || 0 // Temporary - will be recalculated
-            }));
-            setAssets(assetsWithAllocation);
-          }
+        
+        // Try to load from localStorage first
+        const storedAssets = assetsStorage.get();
+        
+        if (storedAssets && Array.isArray(storedAssets) && storedAssets.length > 0) {
+          // Use existing localStorage data
+          console.log('Loading assets from localStorage:', storedAssets.length, 'assets');
+          const assetsWithAllocation = storedAssets.map(asset => ({
+            ...asset,
+            allocation: asset.allocation || 0 // Temporary - will be recalculated
+          }));
+          setAssets(assetsWithAllocation);
         } else {
-          console.error('Failed to load assets:', response.statusText);
+          // First time load - fetch seed data and save to localStorage
+          console.log('No localStorage data found, loading seed data...');
+          const response = await fetch('/api/seed-data');
+          if (response.ok) {
+            const data = await response.json();
+            const seedAssets = data.assets;
+            if (Array.isArray(seedAssets)) {
+              console.log('Loaded seed data:', seedAssets.length, 'assets');
+              const assetsWithAllocation = seedAssets.map(asset => ({
+                ...asset,
+                allocation: asset.allocation || 0
+              }));
+              setAssets(assetsWithAllocation);
+              // Save to localStorage immediately
+              assetsStorage.save(seedAssets);
+            }
+          } else {
+            console.error('Failed to load seed data:', response.statusText);
+          }
         }
       } catch (error) {
-        console.error('Error loading assets from API:', error);
+        console.error('Error loading assets:', error);
       } finally {
         setIsLoading(false);
-        setHasLoaded(true);
       }
     }
 
     loadAssets();
   }, []);
 
-  // Track what we loaded from API so we only save actual user changes
-  const loadedAssetsRef = useRef<string>('');
-  const userHasModified = useRef(false);
-
-  // After load completes, snapshot what came from the server
+  // Save assets to localStorage whenever they change (but not on initial load)
   useEffect(() => {
-    if (hasLoaded && !isLoading) {
-      loadedAssetsRef.current = JSON.stringify(assets.map(({ allocation, ...a }) => a));
+    if (!isLoading && assets.length > 0) {
+      const assetsToSave = assets.map(({ allocation, ...asset }) => asset);
+      assetsStorage.save(assetsToSave);
     }
-  }, [hasLoaded]); // Only run once after first load
-
-  // Save assets to API only when user explicitly modifies (add/remove/update)
-  useEffect(() => {
-    if (!hasLoaded || isLoading || !userHasModified.current) return;
-    
-    const assetsToSave = assets.map(({ allocation, ...asset }) => asset);
-    const currentJson = JSON.stringify(assetsToSave);
-    
-    // Don't save if nothing actually changed from what we loaded
-    if (currentJson === loadedAssetsRef.current) return;
-    
-    (async () => {
-      try {
-        const response = await fetch('/api/assets', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: currentJson,
-        });
-        if (response.ok) {
-          loadedAssetsRef.current = currentJson; // Update snapshot
-        } else {
-          console.error('Failed to save assets:', response.statusText);
-        }
-      } catch (error) {
-        console.error('Error saving assets to API:', error);
-      }
-    })();
-  }, [assets, isLoading, hasLoaded]);
+  }, [assets, isLoading]);
 
   // Calculate net worth dynamically
   const netWorth = assets.reduce((sum, asset) => sum + asset.value, 0);
@@ -99,8 +86,6 @@ export function AssetProvider({ children }: { children: ReactNode }) {
   }));
 
   const addAsset = (asset: Omit<Asset, 'allocation'>) => {
-    userHasModified.current = true;
-    
     // Check if an asset with the same ID already exists, OR by name+category for non-crypto/non-stock assets
     let existingAssetIndex = assets.findIndex(a => a.id === asset.id);
     
@@ -147,12 +132,10 @@ export function AssetProvider({ children }: { children: ReactNode }) {
   };
 
   const removeAsset = (id: string) => {
-    userHasModified.current = true;
     setAssets(prev => prev.filter(asset => asset.id !== id));
   };
 
   const updateAsset = (id: string, partial: Partial<Asset>) => {
-    userHasModified.current = true;
     setAssets(prev => prev.map(asset => 
       asset.id === id ? { ...asset, ...partial } : asset
     ));
