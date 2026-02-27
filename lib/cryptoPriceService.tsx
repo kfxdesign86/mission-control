@@ -32,7 +32,7 @@ export function useCryptoPrices() {
     try {
       // Use interval=hourly to get fewer data points for faster loading
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=1&interval=hourly`
+        `/api/crypto/chart?coinId=${coinId}`
       );
       
       if (!response.ok) {
@@ -75,7 +75,7 @@ export function useCryptoPrices() {
 
     try {
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd&include_24hr_change=true`
+        `/api/crypto/price?ids=${coinIds.join(',')}`
       );
 
       if (!response.ok) {

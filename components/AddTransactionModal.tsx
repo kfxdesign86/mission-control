@@ -144,7 +144,7 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
       setIsSearching(true);
       searchTimeoutRef.current = setTimeout(async () => {
         try {
-          const response = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`);
+          const response = await fetch(`/api/crypto/search?query=${encodeURIComponent(query)}`);
           const data: CoinSearchResponse = await response.json();
           setCryptoResults(data.coins.slice(0, 8));
           setShowDropdown(true);
@@ -193,7 +193,7 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
   // Fetch current price for selected coin
   const fetchCoinPrice = async (coinId: string) => {
     try {
-      const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`);
+      const response = await fetch(`/api/crypto/price?ids=${coinId}`);
       const data: CoinPriceResponse = await response.json();
       const priceData = data[coinId];
       if (priceData) {
