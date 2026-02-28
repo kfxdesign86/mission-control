@@ -147,17 +147,28 @@ export function useStockPrices() {
 
       const data = await response.json();
 
+      // Check for API error response
+      if ((data as any).status === 'error' || (data as any).code === 'error') {
+        console.error('Twelve Data batch quote error:', data);
+        return;
+      }
+
       // Handle single vs multiple symbol responses
-      const quotes = symbols.length === 1 ? [data] : Object.values(data);
+      const quotes = symbols.length === 1 ? [data] : Object.values(data || {});
 
       // Update each stock asset with new price data
       for (const asset of stockAssets) {
         const symbol = asset.id.replace('stock-', '').toUpperCase();
         const quote = Array.isArray(quotes) 
-          ? quotes.find((q: any) => q.symbol === symbol)
+          ? quotes.find((q: any) => q && q.symbol === symbol)
           : quotes;
 
-        if (quote && quote.close && !quote.status) {
+        if (quote && 
+            quote.close !== undefined && 
+            quote.close !== null && 
+            typeof quote.close === 'number' && 
+            !(quote as any).status && 
+            !(quote as any).code) {
           // Calculate quantity from current value and price if not stored
           const currentPrice = parseFloat(quote.close);
           const quantity = asset.qty || (asset.price ? asset.value / asset.price : 1);
@@ -211,19 +222,26 @@ export function useStockPrices() {
 
       const data: TwelveDataSymbolSearchResponse = await response.json();
       
-      if (data.status === 'error') {
+      // Check for API error responses
+      if ((data as any).status === 'error') {
         console.error('Twelve Data symbol search error:', data);
+        return [];
+      }
+
+      // Defensive check: ensure data.data exists before filtering
+      if (!data.data || !Array.isArray(data.data)) {
+        console.warn('Twelve Data returned invalid data structure:', data);
         return [];
       }
 
       // Filter for common stock exchanges and limit results
       const filteredResults = data.data
-        ?.filter(item => 
+        .filter(item => 
           item.instrument_type === 'Common Stock' ||
           item.instrument_type === 'ETF' ||
           item.instrument_type === 'Stock'
         )
-        .slice(0, 8) || [];
+        .slice(0, 8);
 
       return filteredResults;
     } catch (error) {
@@ -252,14 +270,27 @@ export function useStockPrices() {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data: TwelveDataQuoteResponse = await response.json();
+      const data = await response.json();
       
-      if ((data as any).status === 'error') {
+      // Check for various error response shapes
+      if ((data as any).status === 'error' || 
+          (data as any).code === 'error' || 
+          data.error || 
+          data.message?.toLowerCase().includes('error') ||
+          !data.symbol ||
+          data.close === undefined ||
+          data.close === null) {
         console.error(`Twelve Data quote error for ${symbol}:`, data);
         return null;
       }
 
-      return data;
+      // Verify this looks like a valid quote response
+      if (typeof data.close !== 'number' || !data.symbol) {
+        console.error(`Invalid quote data structure for ${symbol}:`, data);
+        return null;
+      }
+
+      return data as TwelveDataQuoteResponse;
     } catch (error) {
       console.error(`Error fetching quote for ${symbol}:`, error);
       return null;

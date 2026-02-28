@@ -241,11 +241,18 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
 
     // Fetch quote data
     const quoteData = await fetchStockQuote(stock.symbol);
-    if (quoteData && quoteData.close) {
+    if (quoteData && 
+        quoteData.close !== undefined && 
+        quoteData.close !== null && 
+        typeof quoteData.close === 'number') {
       newSelectedStock.price = quoteData.close;
       newSelectedStock.change = quoteData.change;
       newSelectedStock.changePercent = quoteData.percent_change;
       setCurrentStockPriceLabel(`Current price: $${quoteData.close.toLocaleString()}`);
+    } else {
+      // Handle case where quote data is unavailable
+      console.warn(`Quote data unavailable for ${stock.symbol}`);
+      setCurrentStockPriceLabel('Quote unavailable - enter manually');
     }
 
     setSelectedStock(newSelectedStock);
@@ -256,10 +263,16 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
 
   // Calculate total value when quantity or price changes
   useEffect(() => {
-    if (selectedCoin?.price) {
-      if (quantity) {
-        const total = parseFloat(quantity) * selectedCoin.price;
-        setValue(total.toString());
+    if (selectedCoin?.price && 
+        typeof selectedCoin.price === 'number' && 
+        selectedCoin.price > 0 && 
+        !isNaN(selectedCoin.price)) {
+      if (quantity && !isNaN(parseFloat(quantity))) {
+        const qty = parseFloat(quantity);
+        const total = qty * selectedCoin.price;
+        if (!isNaN(total) && total >= 0) {
+          setValue(total.toString());
+        }
       } else {
         // Show unit price even when quantity is not entered
         setValue(selectedCoin.price.toString());
@@ -269,10 +282,16 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
 
   // Calculate total value when stock quantity or price changes
   useEffect(() => {
-    if (selectedStock?.price) {
-      if (stockQuantity) {
-        const total = parseFloat(stockQuantity) * selectedStock.price;
-        setValue(total.toString());
+    if (selectedStock?.price && 
+        typeof selectedStock.price === 'number' && 
+        selectedStock.price > 0 && 
+        !isNaN(selectedStock.price)) {
+      if (stockQuantity && !isNaN(parseFloat(stockQuantity))) {
+        const qty = parseFloat(stockQuantity);
+        const total = qty * selectedStock.price;
+        if (!isNaN(total) && total >= 0) {
+          setValue(total.toString());
+        }
       } else {
         // Show unit price even when quantity is not entered
         setValue(selectedStock.price.toString());
@@ -738,15 +757,28 @@ export default function AddTransactionModal({ isOpen, onClose }: AddTransactionM
             createdAt,
           };
         } else if (category === 'stocks' && selectedStock) {
+          // Defensive parsing for numeric values
+          const parsedValue = parseFloat(value) || 0;
+          const parsedQuantity = stockQuantity ? parseFloat(stockQuantity) : undefined;
+          const stockPrice = selectedStock.price || undefined;
+          const stockChange = selectedStock.change || 0;
+          const stockChangePercent = selectedStock.changePercent || 0;
+          
+          // Calculate change24h safely
+          let change24h = 0;
+          if (stockChange && parsedQuantity && !isNaN(stockChange) && !isNaN(parsedQuantity)) {
+            change24h = stockChange * parsedQuantity;
+          }
+
           newAsset = {
             id,
             name: selectedStock.name,
             symbol: selectedStock.symbol.toUpperCase(),
-            value: parseFloat(value),
-            price: selectedStock.price,
-            qty: stockQuantity ? parseFloat(stockQuantity) : undefined,
-            change24h: selectedStock.change && stockQuantity ? selectedStock.change * parseFloat(stockQuantity) : 0,
-            changePercent: selectedStock.changePercent || 0,
+            value: parsedValue,
+            price: stockPrice,
+            qty: parsedQuantity,
+            change24h: !isNaN(change24h) ? change24h : 0,
+            changePercent: !isNaN(stockChangePercent) ? stockChangePercent : 0,
             category: category as any,
             history, // Chart data will be populated by stockPriceService
             createdAt,
