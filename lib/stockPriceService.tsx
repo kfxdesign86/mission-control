@@ -59,7 +59,6 @@ const chartDataCache: {
   } 
 } = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
-const API_KEY = process.env.NEXT_PUBLIC_TWELVE_DATA_API_KEY;
 
 export function useStockPrices() {
   const { assets, updateAsset } = useAssets();
@@ -67,15 +66,10 @@ export function useStockPrices() {
 
   // Fetch optimized chart data for a stock asset - reduced data for faster loading
   const fetchChartData = async (symbol: string, quantity: number) => {
-    if (!API_KEY) {
-      console.error('Twelve Data API key not configured');
-      return [];
-    }
-
     try {
       // Use time_series endpoint with interval=4h to get fewer data points for faster loading
       const response = await fetch(
-        `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=4h&outputsize=8&apikey=${API_KEY}`
+        `/api/stocks/timeseries?symbol=${symbol}&interval=4h&outputsize=8`
       );
       
       if (!response.ok) {
@@ -128,13 +122,13 @@ export function useStockPrices() {
       .map(asset => asset.id.replace('stock-', '').toUpperCase())
       .filter(Boolean);
 
-    if (symbols.length === 0 || !API_KEY) return;
+    if (symbols.length === 0) return;
 
     try {
       // Twelve Data supports batch quotes by comma-separating symbols
       const symbolsString = symbols.join(',');
       const response = await fetch(
-        `https://api.twelvedata.com/quote?symbol=${symbolsString}&apikey=${API_KEY}`
+        `/api/stocks/quote?symbol=${symbolsString}`
       );
 
       if (!response.ok) {
@@ -203,13 +197,13 @@ export function useStockPrices() {
 
   // Search for stock symbols
   const searchStocks = async (query: string): Promise<TwelveDataSymbolSearchResponse['data']> => {
-    if (!API_KEY || query.length < 2) {
+    if (query.length < 2) {
       return [];
     }
 
     try {
       const response = await fetch(
-        `https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(query)}&apikey=${API_KEY}`
+        `/api/stocks/search?symbol=${encodeURIComponent(query)}`
       );
 
       if (!response.ok) {
@@ -252,14 +246,9 @@ export function useStockPrices() {
 
   // Get current quote for a specific stock symbol
   const fetchStockQuote = async (symbol: string): Promise<TwelveDataQuoteResponse | null> => {
-    if (!API_KEY) {
-      console.error('Twelve Data API key not configured');
-      return null;
-    }
-
     try {
       const response = await fetch(
-        `https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${API_KEY}`
+        `/api/stocks/quote?symbol=${symbol}`
       );
 
       if (!response.ok) {
