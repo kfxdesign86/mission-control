@@ -133,19 +133,20 @@ export function AssetProvider({ children }: { children: ReactNode }) {
       const existingAsset = assets[existingAssetIndex];
       
       // For assets with quantity (crypto, stocks), add quantities and recalculate value
-      if (asset.qty && asset.price) {
-        // Handle case where existing asset might not have qty field yet
+      if (asset.qty) {
         const existingQty = existingAsset.qty || 0;
         const newQty = existingQty + asset.qty;
-        const newValue = newQty * asset.price;
-        const newChange24h = asset.changePercent ? (asset.changePercent / 100) * newValue : 0;
+        // Use latest price if available, otherwise keep existing price
+        const bestPrice = asset.price || existingAsset.price || 0;
+        const newValue = bestPrice ? newQty * bestPrice : existingAsset.value + asset.value;
+        const newChange24h = asset.changePercent ? (asset.changePercent / 100) * newValue : existingAsset.change24h || 0;
         
         updateAsset(existingAsset.id, {
           qty: newQty,
           value: newValue,
           change24h: newChange24h,
-          price: asset.price, // Update to latest price
-          changePercent: asset.changePercent, // Update to latest price change
+          ...(bestPrice ? { price: bestPrice } : {}),
+          ...(asset.changePercent ? { changePercent: asset.changePercent } : {}),
         });
       } else {
         // For assets without quantity, just update the value
